@@ -1,0 +1,117 @@
+using UnityEngine;
+using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.Controls; // KeyControl을 사용하기 위해 추가합니다.
+using TMPro;
+using System.Collections.Generic;
+
+/// <summary>
+/// ArticulationBody로 구성된 로봇 팔을 키보드로 직접 제어하고,
+/// 각 관절의 동역학 데이터를 TextMeshPro UI에 실시간으로 표시하는 스크립트입니다.
+/// </summary>
+public class ManualController : MonoBehaviour
+{
+    [Header("Joints")]
+    public ArticulationBody link1; // 루트 관절
+    public ArticulationBody link2;
+    public ArticulationBody link3;
+    public ArticulationBody link4;
+    public ArticulationBody link5;
+    public ArticulationBody link6;
+    public ArticulationBody gripper1;
+    public ArticulationBody gripper2;
+
+    public float rotationSpeed = 100f;
+
+    [Header("UI Monitoring")]
+    public List<TextMeshProUGUI> jointDataDisplays;
+
+    private List<ArticulationBody> allJoints;
+    private List<float> driveForces; // 드라이브 힘을 저장할 리스트
+
+    void Start()
+    {
+        allJoints = new List<ArticulationBody>
+        {
+            link1, link2, link3, link4, link5, link6, gripper1, gripper2
+        };
+
+        // 드라이브 힘을 저장할 리스트를 관절 수만큼 초기화합니다.
+        driveForces = new List<float>(allJoints.Count);
+        for (int i = 0; i < allJoints.Count; i++)
+        {
+            driveForces.Add(0f);
+        }
+    }
+
+    void Update()
+    {
+        HandleInput();
+        UpdateMonitoringUI();
+    }
+
+    void HandleInput()
+    {
+        var keyboard = Keyboard.current;
+        if (keyboard == null) return;
+
+        SetJointVelocity(link1, GetAxisInput(keyboard.dKey, keyboard.aKey) * -rotationSpeed);
+        SetJointVelocity(link2, GetAxisInput(keyboard.sKey, keyboard.wKey) * rotationSpeed);
+        SetJointVelocity(link3, GetAxisInput(keyboard.kKey, keyboard.iKey) * rotationSpeed);
+        SetJointVelocity(link4, GetAxisInput(keyboard.jKey, keyboard.lKey) * rotationSpeed);
+        SetJointVelocity(link5, GetAxisInput(keyboard.numpad5Key, keyboard.numpad8Key) * rotationSpeed);
+        SetJointVelocity(link6, GetAxisInput(keyboard.numpad6Key, keyboard.numpad4Key) * -rotationSpeed);
+
+        float gripperInput = GetAxisInput(keyboard.numpad7Key, keyboard.numpad9Key);
+        SetJointVelocity(gripper1, gripperInput * rotationSpeed);
+        SetJointVelocity(gripper2, gripperInput * -rotationSpeed);
+    }
+
+    float GetAxisInput(KeyControl positiveKey, KeyControl negativeKey)
+    {
+        if (positiveKey.isPressed) return 1f;
+        if (negativeKey.isPressed) return -1f;
+        return 0f;
+    }
+
+    void SetJointVelocity(ArticulationBody joint, float velocity)
+    {
+        if (joint == null) return;
+        var drive = joint.xDrive;
+        drive.targetVelocity = velocity;
+        joint.xDrive = drive;
+    }
+
+    void UpdateMonitoringUI()
+    {
+        // 루트 관절(link1)에서 전체 체인의 드라이브 힘을 한 번에 가져옵니다.
+        if (link1 != null)
+        {
+            link1.GetDriveForces(driveForces);
+        }
+
+        for (int i = 0; i < allJoints.Count; i++)
+        {
+            ArticulationBody joint = allJoints[i];
+            TextMeshProUGUI display = (i < jointDataDisplays.Count) ? jointDataDisplays[i] : null;
+
+            if (joint != null && display != null)
+            {
+                // ArticulationReducedSpace는 [0]으로 접근해야 합니다.
+                float position = (joint.jointPosition.dofCount > 0) ? joint.jointPosition[0] * Mathf.Rad2Deg : 0f;
+                float velocity = (joint.jointVelocity.dofCount > 0) ? joint.jointVelocity[0] * Mathf.Rad2Deg : 0f;
+
+                // joint.jointForce 대신, GetDriveForces로 채워진 리스트에서 값을 가져옵니다.
+                float force = (i < driveForces.Count) ? driveForces[i] : 0f;
+
+                display.text = $"{joint.name}\n" +
+                               $"Pos: {position:F1}°\n" +
+                               $"Vel: {velocity:F1}°/s\n" +
+                               $"Torque: {force:F2}";
+            }
+            else if (display != null)
+            {
+                display.text = $"Joint {i + 1}\nNot Assigned";
+            }
+        }
+    }
+}
