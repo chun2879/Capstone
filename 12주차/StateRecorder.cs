@@ -16,6 +16,10 @@ public class RecordedFrame
 
     // 의사 토크 스냅샷
     public List<float> pseudoTorques = new List<float>();
+
+    // 엔드이펙터 속도 / 가속도 스냅샷
+    public Vector3 recordedVelocity;
+    public Vector3 recordedAcceleration;
 }
 
 public class StateRecorder : MonoBehaviour
@@ -36,7 +40,10 @@ public class StateRecorder : MonoBehaviour
         List<Transform> ghostJoints,
         Transform cube,
         bool cubeHeld,
-        PseudoTorqueHeatmap heatmap)
+        PseudoTorqueHeatmap heatmap,
+        Vector3 smoothedVelocity,       
+        Vector3 smoothedAcceleration     
+    )
     {
         RecordedFrame f = new RecordedFrame();
         f.time = time;
@@ -61,10 +68,12 @@ public class StateRecorder : MonoBehaviour
         if (heatmap != null && heatmap.joints != null)
         {
             for (int i = 0; i < heatmap.joints.Count; i++)
-            {
                 f.pseudoTorques.Add(heatmap.GetSmoothedTorque(i));
-            }
         }
+
+        // 엔드이펙터 속도/가속도 기록
+        f.recordedVelocity = smoothedVelocity;
+        f.recordedAcceleration = smoothedAcceleration;
 
         frames.Add(f);
     }
