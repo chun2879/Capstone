@@ -47,6 +47,9 @@ public class PickAndPlaceController : MonoBehaviour
     [Header("Heatmap")]
     public PseudoTorqueHeatmap heatmap;
 
+    [Header("Motion Visualizer")]
+    public RobotMotionVisualizer motionVisualizer;   
+
     private RobotState currentState;
     private Coroutine currentMove;
     private Coroutine gripMove;
@@ -87,13 +90,24 @@ public class PickAndPlaceController : MonoBehaviour
         {
             simTime += Time.deltaTime;
 
+            // MotionVisualizer에서 smoothedVelocity / smoothedAcceleration 읽어서 기록
+            Vector3 vel = Vector3.zero;
+            Vector3 acc = Vector3.zero;
+            if (motionVisualizer != null)
+            {
+                vel = motionVisualizer.SmoothedVelocity;
+                acc = motionVisualizer.SmoothedAcceleration;
+            }
+
             recorder.RecordFrame(
                 simTime,
                 ikTarget,
                 ghostArmJoints,
                 cube,
                 heldObject != null,
-                heatmap
+                heatmap,
+                vel,
+                acc
             );
         }
     }
@@ -122,6 +136,10 @@ public class PickAndPlaceController : MonoBehaviour
     // ================== UI API ==================
     public void PlaySimulation()
     {
+        // 새 시뮬레이션 시작 시 REPLAY 해제
+        if (motionVisualizer != null)
+            motionVisualizer.ExitReplay();
+
         if (currentState == RobotState.IDLE)
         {
             if (recorder != null) recorder.Clear();
@@ -138,6 +156,10 @@ public class PickAndPlaceController : MonoBehaviour
 
         if (recorder != null) recorder.Clear();
         simTime = 0f;
+
+        // REPLAY도 종료
+        if (motionVisualizer != null)
+            motionVisualizer.ExitReplay();
 
         ikTarget.position = initialIKPos;
 
@@ -198,6 +220,10 @@ public class PickAndPlaceController : MonoBehaviour
         // 히트맵 토크 스냅샷 적용
         if (heatmap != null)
             heatmap.ApplyTorqueSnapshot(f.pseudoTorques);
+
+        // 엔드이펙터 벡터 스냅샷 적용
+        if (motionVisualizer != null)
+            motionVisualizer.ApplyRecordedVectors(f.recordedVelocity, f.recordedAcceleration);
     }
 
     // ================== FSM ==================
